@@ -1,0 +1,49 @@
+services:
+  api:
+    container_name: backend-test
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: dev
+    depends_on:
+      mysql-test:
+        condition: service_healthy
+    ports:
+      - 50010:5000
+    volumes:
+      - .:/app
+    healthcheck:
+      test: curl -f http://localhost:5000/health || exit 1
+      interval: 10s
+      timeout: 10s
+      retries: 2
+  mysql-test:
+    image: mysql:8.0.36-oracle
+    container_name: mysql-test
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+    volumes:
+      - ./database_actions/migrations:/docker-entrypoint-initdb.d:ro
+      - test-mysql-data:/var/lib/mysql
+      - test-mysql-log:/var/log/mysql
+    ports:
+      - 53306:3306
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+  pma-test:
+    image: phpmyadmin/phpmyadmin:latest
+    container_name: pma-test
+    ports:
+      - 63306:80
+    environment:
+      PMA_HOST: mysql-test
+    volumes:
+      - .docker-compose/pma/config.user.inc.php:/etc/phpmyadmin/config.user.inc.php:ro
+    depends_on:
+      - mysql-test
+volumes:
+  test-mysql-data:
+  test-mysql-log:
