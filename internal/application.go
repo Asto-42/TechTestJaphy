@@ -24,13 +24,19 @@ func NewApp(logger *charmLog.Logger) *App {
 }
 
 func (a *App) RegisterRoutes(r *mux.Router) {
-	r.HandleFunc("/breeds", a.GetBreeds).Methods("GET")
-	r.HandleFunc("/breeds", a.CreateBreed).Methods("POST")
+	r.HandleFunc("/breeds/{id}", a.GetBreedByID).Methods("GET")
+	r.HandleFunc("/breeds/search", a.SearchBreeds).Methods("GET")
 	r.HandleFunc("/breeds/{id:[0-9]+}", a.UpdateBreed).Methods("PUT")
 	r.HandleFunc("/breeds/{id:[0-9]+}", a.DeleteBreed).Methods("DELETE")
-	r.HandleFunc("/breeds/search", a.SearchBreeds).Methods("GET")
-	r.HandleFunc("/v1/breeds/{id}", a.GetBreedByID).Methods("GET")
+	r.HandleFunc("/breeds", a.GetBreeds).Methods("GET")
+	r.HandleFunc("/breeds", a.CreateBreed).Methods("POST")
 
+	// fmt.Println("🔍 Routes enregistrées :")
+    // r.Walk(func(route *mux.Route, router *mux.Router, ancestors []*mux.Route) error {
+    //     t, _ := route.GetPathTemplate()
+    //     fmt.Printf("📄 Route enregistrée : %s\n", t)
+    //     return nil
+    // })
 }
 
 type Breed struct {
@@ -43,27 +49,22 @@ type Breed struct {
 func (a *App) GetBreedByID(w http.ResponseWriter, r *http.Request) {
     vars := mux.Vars(r)
     idStr := vars["id"]
-    a.logger.Info(fmt.Sprintf("Requête reçue pour GetBreedByID avec ID : %s", idStr))
-
-    // Convertir l'ID en entier
     id, err := strconv.Atoi(idStr)
     if err != nil {
         a.logger.Error(fmt.Sprintf("ID invalide : %s", err.Error()))
         http.Error(w, "Invalid ID format", http.StatusBadRequest)
         return
     }
-
     var breed Breed
     err = a.DB.QueryRow(`
-        SELECT 
-            id, 
-            name, 
-            species, 
-            (weight_min + weight_max) / 2 AS average_weight 
-        FROM breeds
-        WHERE id = $1
-    `, id).Scan(&breed.ID, &breed.Name, &breed.Species, &breed.AverageWeight)
-
+    SELECT 
+        id, 
+        name, 
+        species, 
+        (weight_min + weight_max) / 2 AS average_weight 
+    FROM breeds
+    WHERE id = ?
+	`, id).Scan(&breed.ID, &breed.Name, &breed.Species, &breed.AverageWeight)
     if err != nil {
         if err == sql.ErrNoRows {
             a.logger.Warn(fmt.Sprintf("Aucun breed trouvé avec ID : %d", id))
@@ -74,12 +75,10 @@ func (a *App) GetBreedByID(w http.ResponseWriter, r *http.Request) {
         }
         return
     }
-
-    a.logger.Info(fmt.Sprintf("Breed trouvé : %+v", breed))
-
     w.Header().Set("Content-Type", "application/json")
     json.NewEncoder(w).Encode(breed)
 }
+
 
 
 func (a *App) GetBreeds(w http.ResponseWriter, r *http.Request) {
@@ -139,6 +138,18 @@ func (a *App) CreateBreed(w http.ResponseWriter, r *http.Request) {
         return
     }
     breed.ID = int(lastInsertID)
+    rows, err := a.DB.Query("SELECT id, name, species FROM breeds WHERE id = ?", breed.ID)
+    if err != nil {
+        a.logger.Error(fmt.Sprintf("Failed to query breed after insertion: %s", err.Error()))
+        http.Error(w, "Failed to query breed after insertion", http.StatusInternalServerError)
+        return
+    }
+    defer rows.Close()
+    for rows.Next() {
+        var id int
+        var name, species string
+        rows.Scan(&id, &name, &species)
+    }
     w.Header().Set("Content-Type", "application/json")
     w.WriteHeader(http.StatusCreated)
     if err := json.NewEncoder(w).Encode(breed); err != nil {
@@ -146,6 +157,7 @@ func (a *App) CreateBreed(w http.ResponseWriter, r *http.Request) {
         http.Error(w, "Failed to encode response", http.StatusInternalServerError)
     }
 }
+
 
 
 func (a *App) UpdateBreed(w http.ResponseWriter, r *http.Request) {

@@ -38,7 +38,7 @@ func WaitForServer(apiURL string) {
 }
 
 func StartTests() {
-	fmt.Println("=== Début des tests de l'API Breeds ===")
+	fmt.Println("\n\n=== Début des tests de l'API Breeds ===")
 
 	csvFile := "./breeds.csv"
 	apiURL := "http://127.0.0.1:5000/v1/breeds"
@@ -118,6 +118,8 @@ func StartTests() {
 
 func testOtherEndpoint(apiURL string) {
 
+	fmt.Printf("🔍 URL de base pour l'API : %s\n", apiURL)
+
 	fmt.Println("🔍 Test de POST /v1/breeds...")
 	newBreed := Breed{
 		Name:          "Test Breed",
@@ -125,8 +127,9 @@ func testOtherEndpoint(apiURL string) {
 		AverageWeight: 15.0,
 	}
 	newBreedID := testPost(apiURL, newBreed)
-
+	
 	fmt.Println("🔍 Validation de la création avec GET...")
+	fmt.Printf("🔍 URL utilisée pour GET : %s/%d\n", apiURL, newBreedID)
 	testGet(apiURL, newBreedID, newBreed)
 
 	fmt.Println("🔍 Test de PUT /v1/breeds/{id}...")
@@ -173,7 +176,10 @@ func testPost(apiURL string, breed Breed) int {
 
 
 func testGet(apiURL string, id int, expected Breed) {
-	resp, err := http.Get(fmt.Sprintf("%s/%d", apiURL, id))
+	finalURL := fmt.Sprintf("%s/%d", apiURL, id)
+	fmt.Printf("🔍 Envoi de la requête GET à l'URL : %s\n", finalURL)
+
+	resp, err := http.Get(finalURL)
 	if err != nil {
 		fmt.Printf("❌ Erreur lors de GET : %s\n", err)
 		os.Exit(1)
@@ -194,6 +200,7 @@ func testGet(apiURL string, id int, expected Breed) {
 	}
 	fmt.Println("✅ GET réussi.")
 }
+
 
 func testPut(apiURL string, id int, updated Breed) {
 	body, _ := json.Marshal(updated)

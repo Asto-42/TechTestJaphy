@@ -93,7 +93,7 @@ func main() {
 
 	go func() {
 		logger.Info(fmt.Sprintf("API port: %s", ApiPort))
-		logger.Info(fmt.Sprintf("Server is listening on http://0.0.0.0:%s", ApiPort))
+		logger.Info(fmt.Sprintf("Server is listening on http://127.0.0.1:%s", ApiPort))
 		err := http.ListenAndServe(
 			net.JoinHostPort("127.0.0.1", ApiPort),
 			r,
