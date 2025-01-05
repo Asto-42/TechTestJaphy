@@ -8,6 +8,8 @@ import (
 	"net/http"
 	"os"
 	"strconv"
+	"bytes"
+	"time"
 )
 
 type Breed struct {
@@ -17,12 +19,30 @@ type Breed struct {
 	AverageWeight float64 `json:"average_weight"`
 }
 
-func startTests() {
+func WaitForServer(apiURL string) {
+	const maxRetries = 10
+	const retryDelay = time.Second
+
+	for i := 0; i < maxRetries; i++ {
+		resp, err := http.Get(fmt.Sprintf("%s/health", apiURL))
+		if err == nil && resp.StatusCode == http.StatusOK {
+			fmt.Println("✅ Serveur prêt.")
+			return
+		}
+		fmt.Printf("⏳ En attente du serveur... Tentative %d/%d\n", i+1, maxRetries)
+		time.Sleep(retryDelay)
+	}
+
+	fmt.Println("❌ Le serveur n'est pas prêt après plusieurs tentatives.")
+	os.Exit(1)
+}
+
+func StartTests() {
 	fmt.Println("=== Début des tests de l'API Breeds ===")
 
 	csvFile := "./breeds.csv"
-	apiURL := "http://localhost:50010/v1/breeds"
-
+	apiURL := "http://127.0.0.1:5000/v1/breeds"
+	
 	fmt.Println("🔍 Lecture des données du fichier CSV...")
 	file, err := os.Open(csvFile)
 	if err != nil {
@@ -93,11 +113,10 @@ func startTests() {
 	}
 	fmt.Println("✅ Toutes les données correspondent entre le CSV et l'API.")
 	fmt.Println("=== Tests terminés avec succès ===")
-	testOtherEndpoint()
+	testOtherEndpoint(apiURL)
 }
 
-func testOtherEndpoint() {
-	apiURL := "http://localhost:50010/v1/breeds"
+func testOtherEndpoint(apiURL string) {
 
 	fmt.Println("🔍 Test de POST /v1/breeds...")
 	newBreed := Breed{
@@ -131,25 +150,27 @@ func testOtherEndpoint() {
 }
 
 func testPost(apiURL string, breed Breed) int {
-	body, _ := json.Marshal(breed)
-	resp, err := http.Post(apiURL, "application/json", bytes.NewBuffer(body))
-	if err != nil {
-		fmt.Printf("❌ Erreur lors de POST : %s\n", err)
-		os.Exit(1)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusCreated {
-		fmt.Printf("❌ POST a retourné un code inattendu : %d\n", resp.StatusCode)
-		os.Exit(1)
-	}
-
-	var createdBreed Breed
-	json.NewDecoder(resp.Body).Decode(&createdBreed)
-
-	fmt.Printf("✅ POST réussi. ID créé : %d\n", createdBreed.ID)
-	return createdBreed.ID
+    body, _ := json.Marshal(breed)
+    resp, err := http.Post(apiURL, "application/json", bytes.NewBuffer(body))
+    if err != nil {
+        fmt.Printf("❌ Erreur lors de POST : %s\n", err)
+        os.Exit(1)
+    }
+    defer resp.Body.Close()
+    if resp.StatusCode != http.StatusCreated {
+        fmt.Printf("❌ POST a retourné un code inattendu : %d\n", resp.StatusCode)
+        os.Exit(1)
+    }
+    var createdBreed Breed
+    err = json.NewDecoder(resp.Body).Decode(&createdBreed)
+    if err != nil {
+        fmt.Printf("❌ Erreur lors du décodage de la réponse POST : %s\n", err)
+        os.Exit(1)
+    }
+    fmt.Printf("✅ POST réussi. ID créé : %d\n", createdBreed.ID)
+    return createdBreed.ID
 }
+
 
 func testGet(apiURL string, id int, expected Breed) {
 	resp, err := http.Get(fmt.Sprintf("%s/%d", apiURL, id))
@@ -171,7 +192,6 @@ func testGet(apiURL string, id int, expected Breed) {
 		fmt.Printf("❌ GET : Données incorrectes. Attendu %+v, reçu %+v\n", expected, breed)
 		os.Exit(1)
 	}
-
 	fmt.Println("✅ GET réussi.")
 }
 

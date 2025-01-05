@@ -1,3 +1,7 @@
+networks:
+  testnet:
+    driver: bridge
+
 services:
   api:
     container_name: backend-test
@@ -12,6 +16,8 @@ services:
       - 50010:5000
     volumes:
       - .:/app
+    networks:
+      - testnet
     healthcheck:
       test: curl -f http://localhost:5000/health || exit 1
       interval: 10s
@@ -28,6 +34,8 @@ services:
       - test-mysql-log:/var/log/mysql
     ports:
       - 53306:3306
+    networks:
+      - testnet
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
       interval: 10s

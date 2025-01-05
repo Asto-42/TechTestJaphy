@@ -10,15 +10,15 @@ import (
 
 	charmLog "github.com/charmbracelet/log"
 	"github.com/gorilla/mux"
-	"github.com/japhy-tech/backend-test/database_actions"
-	"github.com/japhy-tech/backend-test/internal"
-	"./tests"
+	"github.com/Asto-42/TechTestJaphy/database_actions"
+	"github.com/Asto-42/TechTestJaphy/internal"
+	"github.com/Asto-42/TechTestJaphy/tests"
 
 	_ "github.com/go-sql-driver/mysql"
 )
 
 const (
-	MysqlDSN   = "root:root@(mysql-test:3306)/?parseTime=true" // Notez l'absence de `core` pour la première connexion
+	MysqlDSN   = "root:root@(mysql-test:3306)/?parseTime=true"
 	ApiPort    = "5000"
 	BreedsFile = "./breeds.csv"
 )
@@ -91,15 +91,30 @@ func main() {
 		w.WriteHeader(http.StatusOK)
 	}).Methods(http.MethodGet)
 
-	err = http.ListenAndServe(
-		net.JoinHostPort("", ApiPort),
-		r,
-	)
-	if err != nil {
-		logger.Fatal(fmt.Sprintf("Failed to start server: %s", err.Error()))
-	}
+	go func() {
+		logger.Info(fmt.Sprintf("API port: %s", ApiPort))
+		logger.Info(fmt.Sprintf("Server is listening on http://0.0.0.0:%s", ApiPort))
+		err := http.ListenAndServe(
+			net.JoinHostPort("127.0.0.1", ApiPort),
+			r,
+		)
+		if err != nil {
+			logger.Fatal(fmt.Sprintf("Failed to start server: %s", err.Error()))
+		}
+	}()
 
-	logger.Info(fmt.Sprintf("Service started and listen on port %s", ApiPort))
-	logger.Info(fmt.Sprintf("Start testing"))
-	tests.RunTests()
+	go func() {
+		logger.Info("Waiting for server readiness...")
+		for i := 1; i <= 10; i++ {
+			resp, err := http.Get(fmt.Sprintf("http://127.0.0.1:%s/health", ApiPort))
+			if err == nil && resp.StatusCode == http.StatusOK {
+				logger.Info("Server is ready. Starting tests.")
+				tests.StartTests()
+				break
+			}
+			time.Sleep(1 * time.Second)
+		}
+	}()
+
+	select {}
 }
